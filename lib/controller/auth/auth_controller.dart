@@ -10,12 +10,12 @@ class AuthController extends GetxController {
   final AuthService _authService = AuthService();
   final Rx<User?> _user = Rx<User?> (null);
   final Rx<UserModel?> _userModel = Rx<UserModel?>(null);
-  final Rx<bool?> _isLoading = false.obs;
+  final Rx<bool> _isLoading = false.obs;
   final RxString _error = "".obs;
   final RxBool _isinitialized = false.obs;
   User? get user => _user.value;
   UserModel? get userModel =>_userModel.value;
-  bool? get isLoading =>_isLoading.value;
+  bool get isLoading =>_isLoading.value;
   String get error => _error.value;
   bool get isAuthenticated =>_user.value!= null;
   bool get isinitialized => _isinitialized.value;
@@ -53,12 +53,36 @@ class AuthController extends GetxController {
     _isinitialized.value = true;
   }
 
-  Future<void> registerInWithEmailAndPassword (String email, String password,String displayName)async {
+
+  Future<void> signInWithEmailAndPassword (String email, String password)async {
     try{
       _isLoading.value = true;
       _error.value = '';
 
-      UserModel? userModel = await _authService.registerInWithEmailAndPassword(email,password,displayName);
+      UserModel? userModel = await _authService.signInWithEmailAndPassword(email,password,);
+      if(userModel!=null){
+        _userModel.value = userModel;
+        Get.offAllNamed(AppRoutes.main);
+      }
+    }catch(e){
+      _error.value = e.toString();
+      Get.snackbar('Error', 'Failed to create account');
+      print(e);
+    }
+    finally{
+      _isLoading.value = false;
+    }
+  }
+
+
+
+  Future<void> registerInWithEmailAndPassword (String email, String password,
+      {String? displayName})async {
+    try{
+      _isLoading.value = true;
+      _error.value = '';
+
+      UserModel? userModel = await _authService.registerInWithEmailAndPassword(email,password,displayName!);
       if(userModel!=null){
         _userModel.value = userModel;
         Get.offAllNamed(AppRoutes.main);

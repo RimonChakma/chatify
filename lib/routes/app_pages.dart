@@ -1,3 +1,4 @@
+import 'package:chatify/views/auth/login_view.dart';
 import 'package:get_x/get.dart';
 
 import '../views/auth/main_view.dart';
@@ -9,7 +10,8 @@ class AppPages {
 
   static final routes = [
     GetPage(name: AppRoutes.splash, page: () => const SplashView(),),
-    GetPage(name: AppRoutes.main, page: () => const MainView(),)
+    GetPage(name: AppRoutes.main, page: () => const MainView(),),
+    GetPage(name: AppRoutes.login, page: () => const LoginView(),)
 
   ];
 }

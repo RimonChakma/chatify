@@ -13,6 +13,22 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  Future<UserModel?> signInWithEmailAndPassword(String email,
+      String password,) async {
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+          email: email, password: password);
+      User? user = result.user;
+      if(user!=null){
+        await _firestoreService.updateUserOnLineStatus(user.uid, true);
+        return await _firestoreService.getUser(user.uid);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('failed to sign in : ${e.toString()}');
+    }
+  }
+
   Future<UserModel?> registerInWithEmailAndPassword(String email,
       String password, String displayName) async {
     try {
