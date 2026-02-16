@@ -77,12 +77,12 @@ class AuthController extends GetxController {
 
 
   Future<void> registerInWithEmailAndPassword (String email, String password,
-      {String? displayName})async {
+      String displayName)async {
     try{
       _isLoading.value = true;
       _error.value = '';
 
-      UserModel? userModel = await _authService.registerInWithEmailAndPassword(email,password,displayName!);
+      UserModel? userModel = await _authService.registerInWithEmailAndPassword(email,password,displayName);
       if(userModel!=null){
         _userModel.value = userModel;
         Get.offAllNamed(AppRoutes.main);

@@ -1,3 +1,4 @@
+import 'package:chatify/controller/auth/auth_controller.dart';
 import 'package:chatify/firebase_options.dart';
 import 'package:chatify/routes/app_pages.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,6 +8,7 @@ import 'package:get_x/get.dart';
 void main () async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  Get.put(AuthController());
   runApp(MyApp());
 }
 class MyApp extends StatelessWidget {
