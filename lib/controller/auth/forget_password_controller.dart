@@ -48,6 +48,10 @@ class ForgetPasswordController extends GetxController{
     }
   }
 
+  void goBackToLogin(){
+    Get.back();
+  }
+
   void  resetEmail () {
     _emailSent.value = false;
     sentPasswordResetEmail();
