@@ -1,6 +1,7 @@
 import 'package:chatify/controller/auth/profile_controller.dart';
 import 'package:chatify/views/auth/login_view.dart';
-import 'package:chatify/views/auth/profile_view.dart';
+import 'package:chatify/views/auth/profile/change_password.dart';
+import 'package:chatify/views/auth/profile/profile_view.dart';
 import 'package:chatify/views/auth/registration_view.dart';
 import 'package:get/get.dart';
 import 'package:get/get_navigation/src/routes/get_route.dart';
@@ -27,6 +28,7 @@ class AppPages {
       },)
     ),
 
+    GetPage(name: AppRoutes.changePassword, page: () => const ChangePasswordView(),)
 
   ];
 }

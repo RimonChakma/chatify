@@ -1,4 +1,5 @@
 import 'package:chatify/controller/auth/profile_controller.dart';
+import 'package:chatify/routes/app_routes.dart';
 import 'package:chatify/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -180,7 +181,7 @@ class ProfileView extends GetView<ProfileController> {
                         leading: Icon(Icons.security,color: AppTheme.primaryColor,),
                         title: Text("Change Password"),
                         trailing: Icon(Icons.arrow_forward_ios),
-                        onTap: () => Get.toNamed("/change_password"),
+                        onTap: () => Get.toNamed(AppRoutes.changePassword),
                       ),
                       Divider(
                         height: 1,color: Colors.grey,
