@@ -1,7 +1,7 @@
 import 'package:chatify/service/auth_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:get_x/get.dart';
+import 'package:get/get.dart';
 
 class ForgetPasswordController extends GetxController{
   final AuthService _authService = AuthService();

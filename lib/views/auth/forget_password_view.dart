@@ -1,7 +1,7 @@
 import 'package:chatify/controller/auth/forget_password_controller.dart';
 import 'package:chatify/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:get_x/get.dart';
+import 'package:get/get.dart';
 
 class ForgetPasswordView extends StatelessWidget {
   const ForgetPasswordView({super.key});

@@ -2,7 +2,7 @@ import 'package:chatify/controller/auth/auth_controller.dart';
 import 'package:chatify/routes/app_routes.dart';
 import 'package:chatify/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:get_x/get.dart';
+import 'package:get/get.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -44,7 +44,8 @@ class _SplashViewState extends State<SplashView>
     final authController = Get.put(AuthController());
     await Future.delayed(Duration(milliseconds: 500));
     if (authController.isAuthenticated) {
-      Get.offAllNamed(AppRoutes.main);
+      //Get.offAllNamed(AppRoutes.main);
+      Get.offAllNamed(AppRoutes.profile);
     } else {
       Get.offAllNamed(AppRoutes.login);
     }

@@ -3,7 +3,7 @@ import 'package:chatify/firebase_options.dart';
 import 'package:chatify/routes/app_pages.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:get_x/get.dart';
+import 'package:get/get.dart';
 
 void main () async {
   WidgetsFlutterBinding.ensureInitialized();

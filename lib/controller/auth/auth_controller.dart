@@ -1,10 +1,8 @@
 import 'package:chatify/model/user_model.dart';
-import 'package:chatify/routes/app_pages.dart';
 import 'package:chatify/routes/app_routes.dart';
 import 'package:chatify/service/auth_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:get_x/get.dart';
+import 'package:get/get.dart';
 
 class AuthController extends GetxController {
   final AuthService _authService = AuthService();
@@ -24,34 +22,34 @@ class AuthController extends GetxController {
   void onInit (){
     super.onInit();
     _user.bindStream(_authService.authStateChanges);
-    ever(_user, _handleAuthStateChange);
+    // ever(_user, _handleAuthStateChange);
   }
 
-  void _handleAuthStateChange (User? user){
-    if(user == null) {
-      if (Get.currentRoute != AppRoutes.login) {
-        Get.offAllNamed(AppRoutes.login);
-      } else {
-        if (Get.currentRoute != AppRoutes.main) {
-          Get.offAllNamed(AppRoutes.main);
-        }
-      }
-      if (!_isinitialized.value) {
-        _isinitialized.value = true;
-      }
-    }
-  }
+  // void _handleAuthStateChange (User? user){
+  //   if(user == null) {
+  //     if (Get.currentRoute != AppRoutes.login) {
+  //       Get.offAllNamed(AppRoutes.login);
+  //     } else {
+  //       if (Get.currentRoute != AppRoutes.profile) {
+  //         Get.offAllNamed(AppRoutes.profile);
+  //       }
+  //     }
+  //     if (!_isinitialized.value) {
+  //       _isinitialized.value = true;
+  //     }
+  //   }
+  // }
 
-  void  checkInitialAuthState () {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if(currentUser !=null){
-      _user.value = currentUser;
-      Get.offAllNamed(AppRoutes.main);
-    }else{
-      Get.offAllNamed(AppRoutes.main);
-    }
-    _isinitialized.value = true;
-  }
+  // void  checkInitialAuthState () {
+  //   final currentUser = FirebaseAuth.instance.currentUser;
+  //   if(currentUser !=null){
+  //     _user.value = currentUser;
+  //     Get.offAllNamed(AppRoutes.main);
+  //   }else{
+  //     Get.offAllNamed(AppRoutes.main);
+  //   }
+  //   _isinitialized.value = true;
+  // }
 
 
   Future<void> signInWithEmailAndPassword (String email, String password)async {
@@ -62,7 +60,7 @@ class AuthController extends GetxController {
       UserModel? userModel = await _authService.signInWithEmailAndPassword(email,password,);
       if(userModel!=null){
         _userModel.value = userModel;
-        Get.offAllNamed(AppRoutes.main);
+        Get.offAllNamed(AppRoutes.profile);
       }
     }catch(e){
       _error.value = e.toString();
@@ -85,7 +83,7 @@ class AuthController extends GetxController {
       UserModel? userModel = await _authService.registerInWithEmailAndPassword(email,password,displayName);
       if(userModel!=null){
         _userModel.value = userModel;
-        Get.offAllNamed(AppRoutes.main);
+        Get.offAllNamed(AppRoutes.profile);
       }
     }catch(e){
       _error.value = e.toString();

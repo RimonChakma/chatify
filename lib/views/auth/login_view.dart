@@ -2,8 +2,7 @@ import 'package:chatify/controller/auth/auth_controller.dart';
 import 'package:chatify/routes/app_routes.dart';
 import 'package:chatify/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:get_x/get.dart';
-import 'package:get_x/get_core/src/get_main.dart';
+import 'package:get/get.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
