@@ -1,3 +1,8 @@
+import 'package:chatify/model/chat_model.dart';
+import 'package:chatify/model/friend_request_model.dart';
+import 'package:chatify/model/friendship_model.dart';
+import 'package:chatify/model/message_model.dart';
+import 'package:chatify/model/notification_model.dart';
 import 'package:chatify/model/user_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -8,31 +13,25 @@ class FirestoreService {
     try {
       await _firestore.collection("users").doc(user.id).set(user.toMap());
     } catch (e) {
-      throw Exception('Failed TO created User :${e.toString()}');
+      throw Exception('Failed to create User: ${e.toString()}');
     }
   }
 
   Future<UserModel?> getUser(String userId) async {
     try {
-      DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
+      DocumentSnapshot doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
         return UserModel.fromMap(doc.data() as Map<String, dynamic>);
       }
       return null;
     } catch (e) {
-      throw Exception('Failed To Get User :${e.toString()}');
+      throw Exception('Failed to get User: ${e.toString()}');
     }
   }
 
   Future<void> updateUserOnLineStatus(String userId, bool isOnLine) async {
     try {
-      DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
+      DocumentSnapshot doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
         await _firestore.collection('users').doc(userId).update({
           'isOnLine': isOnLine,
@@ -40,7 +39,7 @@ class FirestoreService {
         });
       }
     } catch (e) {
-      throw Exception('Failed to update user Online status :${e.toString()}');
+      throw Exception('Failed to update user Online status: ${e.toString()}');
     }
   }
 
@@ -48,7 +47,7 @@ class FirestoreService {
     try {
       await _firestore.collection('users').doc(userId).delete();
     } catch (e) {
-      throw Exception('Failed to delete user :${e.toString()}');
+      throw Exception('Failed to delete user: ${e.toString()}');
     }
   }
 
@@ -57,14 +56,534 @@ class FirestoreService {
         .collection("users")
         .doc(userId)
         .snapshots()
-        .map((doc) => doc.exists ? UserModel.fromMap(doc.data()!) : null);
+        .map((doc) => doc.exists ? UserModel.fromMap(doc.data() as Map<String, dynamic>) : null);
   }
 
-  Future<void> updateUser (UserModel user)async {
-    try{
+  Future<void> updateUser(UserModel user) async {
+    try {
       await _firestore.collection("users").doc(user.id).update(user.toMap());
-    }catch(e){
-      throw Exception("Failed to update user");
+    } catch (e) {
+      throw Exception("Failed to update user: ${e.toString()}");
+    }
+  }
+
+  Stream<List<UserModel>> getAllUserStream() {
+    return _firestore
+        .collection("users")
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>))
+        .toList());
+  }
+
+  Future<void> sendFriendRequest(FriendRequestModel request) async {
+    try {
+      await _firestore.collection("friendRequest").doc(request.id).set(request.toMap());
+
+      String notificationId =
+          "friend_request_${request.receivedId}_${DateTime.now().millisecondsSinceEpoch}";
+
+      await createNotification(
+        NotificationModel(
+          id: notificationId,
+          userId: request.receivedId,
+          body: "You have received a new friend request",
+          title: "New friend request",
+          type: NotificationType.friendRequest,
+          data: {"senderId": request.senderId, "requestId": request.id},
+          createdAt: DateTime.now(),
+        ),
+      );
+    } catch (e) {
+      throw Exception("Failed to send friend request: ${e.toString()}");
+    }
+  }
+
+  Future<void> cancelFriendRequest(String requestId) async {
+    try {
+      DocumentSnapshot requestDoc = await _firestore.collection("friendRequest").doc(requestId).get();
+      if (requestDoc.exists) {
+        FriendRequestModel request = FriendRequestModel.fromMap(requestDoc.data() as Map<String, dynamic>);
+
+        await _firestore.collection("friendRequest").doc(requestId).delete();
+
+        await deleteNotificationByTypeAndUser(
+          request.receivedId,
+          NotificationType.friendRequest,
+          request.senderId,
+        );
+      }
+    } catch (e) {
+      throw Exception("Failed to cancel friend request: ${e.toString()}");
+    }
+  }
+
+  Future<void> respondToFriendRequest(String requestId, FriendRequestStatus status) async {
+    try {
+      await _firestore.collection("friendRequest").doc(requestId).update({
+        'status': status.name,
+        "respondAt": DateTime.now().millisecondsSinceEpoch,
+      });
+
+      DocumentSnapshot requestDoc = await _firestore.collection("friendRequest").doc(requestId).get();
+
+      if (requestDoc.exists) {
+        FriendRequestModel request = FriendRequestModel.fromMap(requestDoc.data() as Map<String, dynamic>);
+
+        if (status == FriendRequestStatus.accepted) {
+          await createdFriendShip(request.senderId, request.receivedId);
+
+          await createNotification(
+            NotificationModel(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              userId: request.senderId,
+              body: "Your friend request has been accepted",
+              title: "Friend request accepted",
+              type: NotificationType.friendRequestAccepted,
+              createdAt: DateTime.now(),
+              data: {"userId": request.receivedId},
+            ),
+          );
+
+          await _removeNotificationForCancelledRequest(request.receivedId, request.senderId);
+        }
+      }
+    } catch (e) {
+      throw Exception("Failed to respond to friend request: ${e.toString()}");
+    }
+  }
+
+  Stream<List<FriendRequestModel>> getFriendRequestStream(String userId) {
+    return _firestore
+        .collection("friendRequest")
+        .where("receiverId", isEqualTo: userId)
+        .where("status", isEqualTo: "pending")
+        .orderBy("createdAt", descending: true)
+        .snapshots()
+        .map((snapshot) =>
+        snapshot.docs.map((doc) => FriendRequestModel.fromMap(doc.data() as Map<String, dynamic>)).toList());
+  }
+
+  Stream<List<FriendRequestModel>> getSentFriendRequestStream(String userId) {
+    return _firestore
+        .collection("friendRequest")
+        .where("senderId", isEqualTo: userId)
+        .orderBy("createdAt", descending: true)
+        .snapshots()
+        .map((snapshot) =>
+        snapshot.docs.map((doc) => FriendRequestModel.fromMap(doc.data() as Map<String, dynamic>)).toList());
+  }
+
+  Future<FriendRequestModel?> getFriendRequest(String senderId, String receiverId) async {
+    try {
+      QuerySnapshot query = await _firestore
+          .collection("friendRequest")
+          .where("receiverId", isEqualTo: receiverId)
+          .where("senderId", isEqualTo: senderId)
+          .where("status", isEqualTo: "pending")
+          .orderBy("createdAt", descending: true)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return FriendRequestModel.fromMap(query.docs.first.data() as Map<String, dynamic>);
+      } else {
+        return null;
+      }
+    } catch (e) {
+      throw Exception("Failed to get friend request: ${e.toString()}");
+    }
+  }
+
+  Future<void> createdFriendShip(String user1Id, String user2Id) async {
+    try {
+      List<String> userIds = [user1Id, user2Id];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      FriendShipModel friendShip = FriendShipModel(
+          id: friendShipId, user1Id: userIds[0], user2Id: userIds[1], createdAt: DateTime.now());
+      await _firestore.collection('friendship').doc(friendShipId).set(friendShip.toMap());
+    } catch (e) {
+      throw Exception("Failed to create friendship: ${e.toString()}");
+    }
+  }
+
+  Future<void> removeFriendShip(String user1Id, String user2Id) async {
+    try {
+      List<String> userIds = [user1Id, user2Id];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      await _firestore.collection("friendship").doc(friendShipId).delete();
+      await createNotification(NotificationModel(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          userId: user2Id,
+          body: "You are no longer friends",
+          title: 'Friend Remove',
+          type: NotificationType.friendRemoved,
+          data: {"userId": user1Id},
+          createdAt: DateTime.now()));
+    } catch (e) {
+      throw Exception("Failed to remove friendship: ${e.toString()}");
+    }
+  }
+
+  Future<void> blocUser(String blockerId, String blockedId) async {
+    try {
+      List<String> userIds = [blockerId, blockedId];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      await _firestore.collection("friendship").doc(friendShipId).update({
+        "isBlocked": true,
+        "blockedBy": blockerId
+      });
+    } catch (e) {
+      throw Exception("Failed to block user: ${e.toString()}");
+    }
+  }
+
+  Future<void> unBlocUser(String user1Id, String user2Id) async {
+    try {
+      List<String> userIds = [user1Id, user2Id];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      await _firestore.collection("friendship").doc(friendShipId).update({
+        "isBlocked": false,
+        "blockedBy": null
+      });
+    } catch (e) {
+      throw Exception("Failed to unblock user: ${e.toString()}");
+    }
+  }
+
+  Stream<List<FriendShipModel>> getFriendStream(String userId) {
+    return _firestore.collection("friendship").where('user1Id', isEqualTo: userId).snapshots().asyncMap((snapshot) async {
+      QuerySnapshot snapshot2 = await _firestore.collection("friendship").where('user2Id', isEqualTo: userId).get();
+      List<FriendShipModel> friendShipList = [];
+
+      for (var doc in snapshot.docs) {
+        friendShipList.add(FriendShipModel.fromMap(doc.data()));
+      }
+      for (var doc in snapshot2.docs) {
+        friendShipList.add(FriendShipModel.fromMap(doc.data() as Map<String, dynamic>));
+      }
+      return friendShipList.where((f) => !f.isBlocked).toList();
+    });
+  }
+
+  Future<FriendShipModel?> getFriendship(String user1Id, String user2Id) async {
+    try {
+      List<String> userIds = [user1Id, user2Id];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      DocumentSnapshot doc = await _firestore.collection('friendship').doc(friendShipId).get();
+      if (doc.exists) {
+        return FriendShipModel.fromMap(doc.data() as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get friendship: ${e.toString()}');
+    }
+  }
+  Future<bool> isUserBlocked(String user1Id, String otherUserId) async {
+    try {
+      List<String> userIds = [user1Id, otherUserId];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      DocumentSnapshot doc = await _firestore.collection("friendship").doc(friendShipId).get();
+      if (doc.exists) {
+        FriendShipModel friendShip = FriendShipModel.fromMap(doc.data() as Map<String, dynamic>);
+        return friendShip.isBlocked;
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Failed to check if user is blocked: ${e.toString()}');
+    }
+  }
+
+  Future<bool> isUnFriend(String user1Id, String otherUserId) async {
+    try {
+      List<String> userIds = [user1Id, otherUserId];
+      userIds.sort();
+      String friendShipId = "${userIds[0]}_${userIds[1]}";
+      DocumentSnapshot doc = await _firestore.collection("friendship").doc(friendShipId).get();
+      return !doc.exists || (doc.exists && doc.data() == null);
+    } catch (e) {
+      throw Exception('Failed to check if user is unfriend: ${e.toString()}');
+    }
+  }
+
+  Future<String> createOrGetChat(String userId1, String userId2) async {
+    try {
+      List<String> participants = [userId1, userId2];
+      participants.sort();
+      String chatId = "${participants[0]}_${participants[1]}";
+
+      DocumentReference chatRef = _firestore.collection("chats").doc(chatId);
+      DocumentSnapshot chatDoc = await chatRef.get();
+
+      ChatModel? existingChat;
+
+      if (!chatDoc.exists) {
+        ChatModel newChat = ChatModel(
+          id: chatId,
+          participants: participants,
+          unreadCount: {userId1: 0, userId2: 0},
+          deleteBy: {userId1: false, userId2: false},
+          deleteAt: {userId1: null, userId2: null},
+          lastSeenBy: {userId1: DateTime.now(), userId2: DateTime.now()},
+          createAt: DateTime.now(),
+          updateAt: DateTime.now(),
+        );
+        await chatRef.set(newChat.toMap());
+        existingChat = newChat;
+      } else {
+        existingChat = ChatModel.fromMap(chatDoc.data() as Map<String, dynamic>);
+      }
+
+      if (existingChat.isDeleteBy(userId1)) {
+        await restoreChatForUser(chatId, userId1);
+      }
+      if (existingChat.isDeleteBy(userId2)) {
+        await restoreChatForUser(chatId, userId2);
+      }
+
+      return chatId;
+    } catch (e) {
+      throw Exception('Failed to create or get chat: ${e.toString()}');
+    }
+  }
+
+  Stream<List<ChatModel>> getUserChatStream(String userId) {
+    return _firestore
+        .collection('chats')
+        .where("participants", arrayContains: userId)
+        .orderBy('updateAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => ChatModel.fromMap(doc.data() as Map<String, dynamic>))
+        .where((chat) => !chat.isDeleteBy(userId))
+        .toList());
+  }
+
+  Future<void> updateChatLastMessage(String chatId, MessageModel message) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        "lastMessage": message.content,
+        "lastMessageTime": message.timestamp.millisecondsSinceEpoch,
+        "lastMessageSenderId": message.senderId,
+        "updateAt": DateTime.now().microsecondsSinceEpoch
+      });
+    } catch (e) {
+      throw Exception("Failed to update chat last message: ${e.toString()}");
+    }
+  }
+
+  Future<void> updateUserLastSeen(String chatId, String userId) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        "lastSeenBy.$userId": DateTime.now().microsecondsSinceEpoch
+      });
+    } catch (e) {
+      throw Exception("Failed to update last seen: ${e.toString()}");
+    }
+  }
+
+  Future<void> deleteChatForUser(String chatId, String userId) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        "deleteBy.$userId": true,
+        "deleteAt.$userId": DateTime.now().microsecondsSinceEpoch
+      });
+    } catch (e) {
+      throw Exception("Failed to delete chat: ${e.toString()}");
+    }
+  }
+
+  Future<void> restoreChatForUser(String chatId, String userId) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        'deleteBy.$userId': false,
+      });
+    } catch (e) {
+      throw Exception("Failed to restore chat: ${e.toString()}");
+    }
+  }
+
+  Future<void> updateUnreadCount(String chatId, String userId, int count) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        "unreadCount.$userId": count,
+      });
+    } catch (e) {
+      throw Exception("Failed to update unread count: ${e.toString()}");
+    }
+  }
+
+  Future<void> restoreUnreadCount(String chatId, String userId) async {
+    try {
+      await _firestore.collection("chats").doc(chatId).update({
+        "unreadCount.$userId": 0,
+      });
+    } catch (e) {
+      throw Exception("Failed to restore unread count: ${e.toString()}");
+    }
+  }
+
+  Future<void> sendMessage(MessageModel message) async {
+    try {
+      await _firestore.collection("message").doc(message.id).set(message.toMap());
+
+      String chatId = await createOrGetChat(message.senderId, message.receivedId);
+
+      await updateChatLastMessage(chatId, message);
+      await updateUserLastSeen(chatId, message.senderId);
+
+      DocumentSnapshot chatDoc = await _firestore.collection("chats").doc(chatId).get();
+
+      if (chatDoc.exists) {
+        ChatModel chat = ChatModel.fromMap(chatDoc.data() as Map<String, dynamic>);
+        int currentUnread = chat.getUnreadCount(message.receivedId);
+        await updateUnreadCount(chatId, message.receivedId, currentUnread + 1);
+      }
+    } catch (e) {
+      throw Exception("Failed to send message: ${e.toString()}");
+    }
+  }
+
+  Stream<List<MessageModel>> getMessagesStream(String userId1, String userId2) {
+    List<String> participants = [userId1, userId2];
+    participants.sort();
+    String chatId = "${participants[0]}_${participants[1]}";
+
+    return _firestore.collection("message").where("senderId", whereIn: [userId1, userId2]).snapshots().asyncMap((snapshot) async {
+      DocumentSnapshot chatDoc = await _firestore.collection("chats").doc(chatId).get();
+
+      ChatModel? chat;
+      if (chatDoc.exists) {
+        chat = ChatModel.fromMap(chatDoc.data() as Map<String, dynamic>);
+      }
+
+      List<MessageModel> messages = [];
+
+      for (var doc in snapshot.docs) {
+        MessageModel message = MessageModel.fromMap(doc.data());
+        if ((message.senderId == userId1 && message.receivedId == userId2) ||
+            (message.senderId == userId2 && message.receivedId == userId1)) {
+          bool includeMessage = true;
+          if (chat != null) {
+            DateTime? currentUserDeletedAt = chat.getDeleteAt(userId1);
+            if (currentUserDeletedAt != null && message.timestamp.isBefore(currentUserDeletedAt)) {
+              includeMessage = false;
+            }
+          }
+          if (includeMessage) {
+            messages.add(message);
+          }
+        }
+      }
+
+      messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return messages;
+    });
+  }
+
+  Future<void> markMessageAsRead(String messageId) async {
+    try {
+      await _firestore.collection("message").doc(messageId).update({
+        "isRead": true,
+      });
+    } catch (e) {
+      throw Exception("Failed to mark message as read: ${e.toString()}");
+    }
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      await _firestore.collection("message").doc(messageId).delete();
+    } catch (e) {
+      throw Exception("Failed to delete message: ${e.toString()}");
+    }
+  }
+
+  Future<void> editMessage(String messageId, String newContent) async {
+    try {
+      await _firestore.collection("message").doc(messageId).update({
+        "content": newContent,
+        "isEdited": true,
+        "editedAt": DateTime.now().microsecondsSinceEpoch
+      });
+    } catch (e) {
+      throw Exception("Failed to edit message: ${e.toString()}");
+    }
+  }
+
+  Future<void> createNotification(NotificationModel notification) async {
+    try {
+      await _firestore.collection("notification").doc(notification.id).set(notification.toMap());
+    } catch (e) {
+      throw Exception("Failed to create notification: ${e.toString()}");
+    }
+  }
+
+  Stream<List<NotificationModel>> getNotificationStream(String userId) {
+    return _firestore.collection("notification").where('userId', isEqualTo: userId).orderBy("createdAt", descending: true).snapshots().map(
+            (snapshot) => snapshot.docs.map((doc) => NotificationModel.fromMap(doc.data())).toList());
+  }
+
+  Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      await _firestore.collection("notification").doc(notificationId).update({
+        'isRead': true,
+      });
+    } catch (e) {
+      throw Exception("Failed to mark notification as read: ${e.toString()}");
+    }
+  }
+
+  Future<void> markAllNotificationAsRead(String userId) async {
+    try {
+      QuerySnapshot notification = await _firestore.collection("notification").where("userId", isEqualTo: userId).where("isRead", isEqualTo: false).get();
+
+      WriteBatch batch = _firestore.batch();
+
+      for (var doc in notification.docs) {
+        batch.update(doc.reference, {"isRead": true});
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception("Failed to mark all notification as read: ${e.toString()}");
+    }
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      await _firestore.collection("notification").doc(notificationId).delete();
+    } catch (e) {
+      throw Exception("Failed to delete notification: ${e.toString()}");
+    }
+  }
+
+  Future<void> deleteNotificationByTypeAndUser(String userId, NotificationType type, String relatedUserId) async {
+    try {
+      QuerySnapshot notification = await _firestore.collection("notification").where("userId", isEqualTo: userId).where('type', isEqualTo: type.name).get();
+      WriteBatch batch = _firestore.batch();
+      for (var doc in notification.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        if (data["data"] != null && (data["data"]["senderId"] == relatedUserId || data["data"]["userId"] == relatedUserId)) {
+          batch.delete(doc.reference);
+        }
+      }
+      await batch.commit();
+    } catch (e) {
+      throw Exception("Failed to delete notification: ${e.toString()}");
+    }
+  }
+
+  Future<void> _removeNotificationForCancelledRequest(String receivedId, String senderId) async {
+    try {
+      await deleteNotificationByTypeAndUser(receivedId, NotificationType.friendRequest, senderId);
+    } catch (e) {
+      print("error removing notification");
     }
   }
 }
