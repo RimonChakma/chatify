@@ -60,7 +60,7 @@ class AuthController extends GetxController {
       UserModel? userModel = await _authService.signInWithEmailAndPassword(email,password,);
       if(userModel!=null){
         _userModel.value = userModel;
-        Get.offAllNamed(AppRoutes.profile);
+        Get.offAllNamed(AppRoutes.main);
       }
     }catch(e){
       _error.value = e.toString();
