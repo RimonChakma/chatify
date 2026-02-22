@@ -56,7 +56,6 @@ class MainView extends GetView<MainController> {
         ),
       ),
     );
-
   }
 
   Widget _buildIconWithBadge(IconData icon, int count){
